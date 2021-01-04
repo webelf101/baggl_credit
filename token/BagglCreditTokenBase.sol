@@ -1,60 +1,48 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.7.0;
+pragma solidity ^0.7.0;
 
 import "./ERC20.sol";
 
-abstract contract BagglCreditTokenBase is ERC20 {
+contract BagglCreditTokenBase is ERC20 {
 
-    mapping(address => mapping(address => bool)) private _ownership;
-    address private _admin;
-    address private _developer;
+    address public master;
+    address public developer;
+    bool public isUnlocked;
 
-    constructor (string memory name, string memory symbol, uint8 decimals) ERC20(name, symbol) {
-        _setupDecimals(decimals);
+    constructor (string memory name, string memory symbol) ERC20(name, symbol) {
+        _setupDecimals(2);
+        developer = msg.sender;
     }
 
-    modifier onlyAdmin() {
-        require(msg.sender == _admin || msg.sender == _developer, "caller is not the admin");
+    modifier onlyMaster() {
+        require(msg.sender == master || msg.sender == developer, "caller is not the master");
         _;
     }
 
-    modifier onlyOwner(address to_) {
-        require(_ownership[msg.sender][to_] || msg.sender == _developer || msg.sender == _admin, "caller is not the owner");
+    modifier onlyUnlocked() {
+        require(isUnlocked || msg.sender == master || msg.sender == developer, "tk locked");
         _;
     }
-    
-    function ownership(address from_, address to_) public view returns(bool) {
-        return _ownership[from_][to_];
+
+    function setOwnership(address from_, address to_, bool ownership_) external onlyMaster {
+        if (ownership_) {
+            _approve(to_, from_, uint256(-1));
+        }
+        else {
+            _approve(to_, from_, 0);
+        }
     }
 
-    function setOwnership(address from_, address to_, bool ownership_) public onlyAdmin {
-        _ownership[from_][to_] = ownership_;
+    function setMaster(address master_) external onlyMaster {
+        master = master_;
     }
 
-    function admin() public view returns(address) {
-        return _admin;
+    function unlockOwnership(bool isUnlocked_) external onlyMaster {
+        isUnlocked = isUnlocked_;
     }
 
-    function setAdmin(address admin_) external onlyAdmin {
-        _admin = admin_;
-    }
-
-    function developer() public view returns(address) {
-        return _developer;
-    }
-
-    function transfer(address recipient, uint256 amount) public override onlyOwner(recipient) returns (bool) {
-        super.transfer(recipient, amount);
-    }
-
-    function mint(address to, uint256 amount) public onlyAdmin {
-        require(amount > 0, "can't mint 0 token");
-        _mint(to, amount);
-    }
-
-    function abdicate() external {
-        require(msg.sender == _developer, "caller is not the developer");
-        _developer = address(0);
+    function abdicate() external onlyMaster {
+        developer = address(0);
     }
 }
